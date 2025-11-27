@@ -12,6 +12,7 @@ interface XMLFile {
   size: number;
   status: 'pending' | 'processing' | 'done' | 'error';
   data?: Record<string, string>[];
+  rawFile?: File;
 }
 
 interface ParsedField {
@@ -59,6 +60,7 @@ const Index = () => {
       name: file.name,
       size: file.size,
       status: 'pending',
+      rawFile: file,
     }));
 
     setFiles(prev => [...prev, ...newFiles]);
@@ -80,12 +82,13 @@ const Index = () => {
       name: file.name,
       size: file.size,
       status: 'pending',
+      rawFile: file,
     }));
 
     setFiles(prev => [...prev, ...newFiles]);
   };
 
-  const parseFiles = () => {
+  const parseFiles = async () => {
     if (files.length === 0) {
       toast({
         title: 'Нет файлов',
@@ -99,40 +102,98 @@ const Index = () => {
       prev.map(file => ({ ...file, status: 'processing' as const }))
     );
 
-    setTimeout(() => {
-      const mockFields: ParsedField[] = [
-        { name: 'id', type: 'number', selected: true },
-        { name: 'name', type: 'string', selected: true },
-        { name: 'email', type: 'string', selected: true },
-        { name: 'date', type: 'date', selected: true },
-        { name: 'status', type: 'string', selected: true },
-        { name: 'amount', type: 'number', selected: true },
+    try {
+      const allParsedData: Record<string, string>[] = [];
+
+      for (const file of files) {
+        if (!file.rawFile) continue;
+
+        const text = await file.rawFile.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, 'text/xml');
+
+        const timestamp = xmlDoc.querySelector('timestamp')?.textContent || '';
+        const day = xmlDoc.querySelector('day')?.textContent || '';
+        const senderInn = xmlDoc.querySelector('sender inn')?.textContent || '';
+        const senderName = xmlDoc.querySelector('sender name')?.textContent || '';
+
+        const measuringPoints = xmlDoc.querySelectorAll('measuringpoint');
+
+        measuringPoints.forEach(point => {
+          const pointCode = point.getAttribute('code') || '';
+          const pointName = point.getAttribute('name') || '';
+
+          const channels = point.querySelectorAll('measuringchannel');
+
+          channels.forEach(channel => {
+            const channelCode = channel.getAttribute('code') || '';
+            const channelDesc = channel.getAttribute('desc') || '';
+
+            const periods = channel.querySelectorAll('period');
+
+            periods.forEach(period => {
+              const start = period.getAttribute('start') || '';
+              const end = period.getAttribute('end') || '';
+              const value = period.querySelector('value')?.textContent || '';
+
+              allParsedData.push({
+                'Файл': file.name,
+                'Дата': day,
+                'Временная метка': timestamp,
+                'ИНН отправителя': senderInn,
+                'Отправитель': senderName,
+                'Код точки учета': pointCode,
+                'Название точки учета': pointName,
+                'Код канала': channelCode,
+                'Описание канала': channelDesc,
+                'Период начало': start,
+                'Период конец': end,
+                'Значение': value,
+              });
+            });
+          });
+        });
+      }
+
+      const fields: ParsedField[] = [
+        { name: 'Файл', type: 'string', selected: true },
+        { name: 'Дата', type: 'string', selected: true },
+        { name: 'Временная метка', type: 'string', selected: false },
+        { name: 'ИНН отправителя', type: 'string', selected: false },
+        { name: 'Отправитель', type: 'string', selected: false },
+        { name: 'Код точки учета', type: 'string', selected: true },
+        { name: 'Название точки учета', type: 'string', selected: true },
+        { name: 'Код канала', type: 'string', selected: true },
+        { name: 'Описание канала', type: 'string', selected: true },
+        { name: 'Период начало', type: 'string', selected: true },
+        { name: 'Период конец', type: 'string', selected: true },
+        { name: 'Значение', type: 'string', selected: true },
       ];
 
-      const mockData = files.map((file, index) => ({
+      const updatedFiles = files.map(file => ({
         ...file,
         status: 'done' as const,
-        data: [
-          {
-            id: String(index + 1),
-            name: `Запись из ${file.name}`,
-            email: `user${index + 1}@example.com`,
-            date: new Date(2024, 0, index + 1).toISOString().split('T')[0],
-            status: index % 2 === 0 ? 'Активный' : 'Неактивный',
-            amount: String((index + 1) * 1000),
-          },
-        ],
+        data: allParsedData.filter(row => row['Файл'] === file.name),
       }));
 
-      setFiles(mockData);
-      setParsedFields(mockFields);
+      setFiles(updatedFiles);
+      setParsedFields(fields);
       setActiveTab('settings');
 
       toast({
         title: 'Парсинг завершён',
-        description: `Обработано ${files.length} файлов`,
+        description: `Обработано ${files.length} файлов, получено ${allParsedData.length} записей`,
       });
-    }, 2000);
+    } catch (error) {
+      toast({
+        title: 'Ошибка парсинга',
+        description: 'Не удалось обработать XML файлы',
+        variant: 'destructive',
+      });
+      setFiles(prev =>
+        prev.map(file => ({ ...file, status: 'error' as const }))
+      );
+    }
   };
 
   const exportToXLSX = () => {
@@ -165,10 +226,18 @@ const Index = () => {
     const selectedFields = parsedFields.filter(f => f.selected);
     const allData = files.flatMap(file => file.data || []);
 
-    let csvContent = selectedFields.map(f => f.name).join(',') + '\n';
+    const escapeCSV = (value: string) => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
+    let csvContent = '\uFEFF';
+    csvContent += selectedFields.map(f => escapeCSV(f.name)).join(';') + '\n';
     
     allData.forEach(row => {
-      const rowData = selectedFields.map(field => row[field.name] || '').join(',');
+      const rowData = selectedFields.map(field => escapeCSV(row[field.name] || '')).join(';');
       csvContent += rowData + '\n';
     });
 
