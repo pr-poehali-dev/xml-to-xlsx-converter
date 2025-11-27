@@ -230,7 +230,10 @@ const Index = () => {
 
     const escapeCSV = (value: string) => {
       const str = String(value || '');
-      return `="${str.replace(/"/g, '""')}"`;
+      if (str.includes(';') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return `\t${str}`;
     };
 
     let csvContent = '\uFEFF';
