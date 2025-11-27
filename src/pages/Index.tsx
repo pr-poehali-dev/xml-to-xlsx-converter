@@ -250,11 +250,7 @@ const Index = () => {
                     или нажмите кнопку ниже для выбора файлов
                   </p>
                 </div>
-                <label htmlFor="file-upload">
-                  <Button size="lg" className="cursor-pointer">
-                    <Icon name="FolderOpen" size={20} className="mr-2" />
-                    Выбрать файлы
-                  </Button>
+                <div>
                   <input
                     id="file-upload"
                     type="file"
@@ -263,7 +259,15 @@ const Index = () => {
                     onChange={handleFileInput}
                     className="hidden"
                   />
-                </label>
+                  <label htmlFor="file-upload">
+                    <Button size="lg" className="cursor-pointer" asChild>
+                      <span>
+                        <Icon name="FolderOpen" size={20} className="mr-2" />
+                        Выбрать файлы
+                      </span>
+                    </Button>
+                  </label>
+                </div>
               </div>
             </Card>
 
