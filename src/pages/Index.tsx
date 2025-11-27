@@ -161,6 +161,34 @@ const Index = () => {
     }, 1500);
   };
 
+  const downloadXLSX = () => {
+    const selectedFields = parsedFields.filter(f => f.selected);
+    const allData = files.flatMap(file => file.data || []);
+
+    let csvContent = selectedFields.map(f => f.name).join(',') + '\n';
+    
+    allData.forEach(row => {
+      const rowData = selectedFields.map(field => row[field.name] || '').join(',');
+      csvContent += rowData + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `parsed_data_${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: 'Файл загружен',
+      description: 'CSV файл успешно сохранён на вашем устройстве',
+    });
+  };
+
   const toggleField = (fieldName: string) => {
     setParsedFields(prev =>
       prev.map(f =>
@@ -444,9 +472,10 @@ const Index = () => {
                   <Button
                     size="lg"
                     className="bg-gradient-to-r from-primary to-accent"
+                    onClick={downloadXLSX}
                   >
                     <Icon name="Download" size={20} className="mr-2" />
-                    Скачать XLSX
+                    Скачать CSV
                   </Button>
                   <Button
                     variant="outline"
