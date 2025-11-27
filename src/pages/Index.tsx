@@ -108,7 +108,9 @@ const Index = () => {
       for (const file of files) {
         if (!file.rawFile) continue;
 
-        const text = await file.rawFile.text();
+        const arrayBuffer = await file.rawFile.arrayBuffer();
+        const decoder = new TextDecoder('windows-1251');
+        const text = decoder.decode(arrayBuffer);
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(text, 'text/xml');
 
@@ -227,14 +229,12 @@ const Index = () => {
     const allData = files.flatMap(file => file.data || []);
 
     const escapeCSV = (value: string) => {
-      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-        return `"${value.replace(/"/g, '""')}"`;
-      }
-      return value;
+      const str = String(value || '');
+      return `="${str.replace(/"/g, '""')}"`;
     };
 
     let csvContent = '\uFEFF';
-    csvContent += selectedFields.map(f => escapeCSV(f.name)).join(';') + '\n';
+    csvContent += selectedFields.map(f => f.name).join(';') + '\n';
     
     allData.forEach(row => {
       const rowData = selectedFields.map(field => escapeCSV(row[field.name] || '')).join(';');
