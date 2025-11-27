@@ -109,17 +109,17 @@ const Index = () => {
         { name: 'amount', type: 'number', selected: true },
       ];
 
-      const mockData = files.map(file => ({
+      const mockData = files.map((file, index) => ({
         ...file,
         status: 'done' as const,
         data: [
           {
-            id: '1',
-            name: 'Иван Иванов',
-            email: 'ivan@example.com',
-            date: '2024-01-15',
-            status: 'Активный',
-            amount: '15000',
+            id: String(index + 1),
+            name: `Запись из ${file.name}`,
+            email: `user${index + 1}@example.com`,
+            date: new Date(2024, 0, index + 1).toISOString().split('T')[0],
+            status: index % 2 === 0 ? 'Активный' : 'Неактивный',
+            amount: String((index + 1) * 1000),
           },
         ],
       }));
